@@ -1,0 +1,230 @@
+{
+  "entities": {
+    "CustomerProfile": {
+      "title": "CustomerProfile",
+      "description": "Authenticated customer profile linked to their Customer OOP instance.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the customer."
+        },
+        "customerId": {
+          "type": "integer",
+          "description": "Numeric customer ID entered on the Login screen."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Customer full name."
+        },
+        "address": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Customer delivery address (PII)."
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Verified account email."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["ownerUid", "customerId", "name", "address", "createdAt", "updatedAt"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Confirmed food order stored in Firestore with bounded item list and delivery status.",
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "integer",
+          "description": "Numeric sequential order identifier."
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the customer who placed the order."
+        },
+        "customerId": {
+          "type": "integer",
+          "description": "Numeric customer ID."
+        },
+        "customerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Customer name."
+        },
+        "customerAddress": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "description": "Delivery address (PII)."
+        },
+        "items": {
+          "type": "array",
+          "description": "Bounded list of ordered item summaries (max 20 distinct items)."
+        },
+        "total": {
+          "type": "number",
+          "description": "Total payable amount in Rs."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["Online Payment", "Cash on Delivery"],
+          "maxLength": 40,
+          "description": "Polymorphic payment strategy name."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["Order Placed", "Order Received", "Food Preparing", "Out for Delivery", "Delivered"],
+          "maxLength": 40,
+          "description": "Current order and delivery lifecycle status."
+        },
+        "deliveryPerson": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Assigned delivery rider name."
+        },
+        "placedAt": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "Human-readable order placement timestamp."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp."
+        }
+      },
+      "required": [
+        "orderId",
+        "ownerUid",
+        "customerId",
+        "customerName",
+        "customerAddress",
+        "items",
+        "total",
+        "paymentMethod",
+        "status",
+        "placedAt",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Customer food and delivery review with validated 1-5 rating.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the reviewer."
+        },
+        "customerName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Reviewer display name."
+        },
+        "rating": {
+          "type": "integer",
+          "description": "Rating between 1 and 5."
+        },
+        "comment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Review text."
+        },
+        "createdAtDisplay": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "Display time string."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["ownerUid", "customerName", "rating", "comment", "createdAtDisplay", "createdAt"]
+    },
+    "LogEntry": {
+      "title": "LogEntry",
+      "description": "System INFO or WARNING log entry persisted for audit and Admin Console.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the active session."
+        },
+        "level": {
+          "type": "string",
+          "enum": ["INFO", "WARNING"],
+          "maxLength": 16,
+          "description": "Severity level."
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Log event message."
+        },
+        "clientTimestamp": {
+          "type": "string",
+          "maxLength": 40,
+          "description": "ISO timestamp generated when log occurred."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["ownerUid", "level", "message", "clientTimestamp", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/customers/{userId}": {
+      "schema": { "$ref": "#/entities/CustomerProfile" },
+      "description": "Private customer profile storing numeric customerId, name, and delivery address (PII)."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Confirmed orders owned by a customer and readable by the owner or administrator."
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Customer reviews with strict 1-5 rating enforcement."
+    },
+    "/logs/{logId}": {
+      "schema": { "$ref": "#/entities/LogEntry" },
+      "description": "Persistent INFO/WARNING audit logs scoped to owner or administrator."
+    }
+  }
+}

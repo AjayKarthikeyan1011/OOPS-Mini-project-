@@ -1,0 +1,245 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ================= PRIMITIVES & HELPERS =================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'ajaykarthikeyan4545@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // ================= VALIDATION BLUEPRINTS =================
+    function isValidCustomerProfile(data, userId) {
+      return data.keys().hasAll(['ownerUid', 'customerId', 'name', 'address', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerUid', 'customerId', 'name', 'address', 'email', 'createdAt', 'updatedAt'])
+        && data.ownerUid is string
+        && isValidId(data.ownerUid)
+        && data.ownerUid == userId
+        && data.customerId is int
+        && data.customerId > 0
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 100
+        && data.address is string
+        && data.address.size() >= 1
+        && data.address.size() <= 300
+        && (!('email' in data) || (data.email is string && data.email.size() <= 160))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll([
+          'orderId',
+          'ownerUid',
+          'customerId',
+          'customerName',
+          'customerAddress',
+          'items',
+          'total',
+          'paymentMethod',
+          'status',
+          'placedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'orderId',
+          'ownerUid',
+          'customerId',
+          'customerName',
+          'customerAddress',
+          'items',
+          'total',
+          'paymentMethod',
+          'status',
+          'deliveryPerson',
+          'placedAt',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.orderId is int
+        && data.orderId > 0
+        && data.ownerUid is string
+        && isValidId(data.ownerUid)
+        && data.customerId is int
+        && data.customerId > 0
+        && data.customerName is string
+        && data.customerName.size() >= 1
+        && data.customerName.size() <= 100
+        && data.customerAddress is string
+        && data.customerAddress.size() >= 1
+        && data.customerAddress.size() <= 300
+        && data.items is list
+        && data.items.size() >= 1
+        && data.items.size() <= 20
+        && data.items[0] is map
+        && (data.total is int || data.total is float)
+        && data.total > 0
+        && data.paymentMethod is string
+        && data.paymentMethod.size() <= 40
+        && data.paymentMethod in ['Online Payment', 'Cash on Delivery']
+        && data.status is string
+        && data.status.size() <= 40
+        && data.status in ['Order Placed', 'Order Received', 'Food Preparing', 'Out for Delivery', 'Delivered']
+        && (!('deliveryPerson' in data) || (data.deliveryPerson is string && data.deliveryPerson.size() <= 100))
+        && data.placedAt is string
+        && data.placedAt.size() >= 1
+        && data.placedAt.size() <= 60
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReview(data) {
+      return data.keys().hasAll(['ownerUid', 'customerName', 'rating', 'comment', 'createdAtDisplay', 'createdAt'])
+        && data.keys().hasOnly(['ownerUid', 'customerName', 'rating', 'comment', 'createdAtDisplay', 'createdAt'])
+        && data.ownerUid is string
+        && isValidId(data.ownerUid)
+        && data.customerName is string
+        && data.customerName.size() >= 1
+        && data.customerName.size() <= 100
+        && data.rating is int
+        && data.rating >= 1
+        && data.rating <= 5
+        && data.comment is string
+        && data.comment.size() >= 1
+        && data.comment.size() <= 500
+        && data.createdAtDisplay is string
+        && data.createdAtDisplay.size() >= 1
+        && data.createdAtDisplay.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    function isValidLogEntry(data) {
+      return data.keys().hasAll(['ownerUid', 'level', 'message', 'clientTimestamp', 'createdAt'])
+        && data.keys().hasOnly(['ownerUid', 'level', 'message', 'clientTimestamp', 'createdAt'])
+        && data.ownerUid is string
+        && isValidId(data.ownerUid)
+        && data.level is string
+        && data.level.size() <= 16
+        && data.level in ['INFO', 'WARNING']
+        && data.message is string
+        && data.message.size() >= 1
+        && data.message.size() <= 500
+        && data.clientTimestamp is string
+        && data.clientTimestamp.size() >= 1
+        && data.clientTimestamp.size() <= 40
+        && data.createdAt is timestamp;
+    }
+
+    // ================= COLLECTION RULES =================
+    match /customers/{userId} {
+      allow get: if isValidId(userId) && isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isValidId(userId)
+        && isVerified()
+        && isValidCustomerProfile(incoming(), userId)
+        && incoming().ownerUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isVerified()
+        && isValidCustomerProfile(incoming(), userId)
+        && (request.auth.uid == userId || isAdmin())
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['customerId', 'name', 'address', 'email', 'updatedAt']);
+      allow delete: if isValidId(userId) && (isAdmin() || (isVerified() && request.auth.uid == userId));
+    }
+
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create: if isValidId(orderId)
+        && isVerified()
+        && isValidOrder(incoming())
+        && incoming().ownerUid == request.auth.uid
+        && incoming().status == 'Order Placed'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(orderId)
+        && isVerified()
+        && isValidOrder(incoming())
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && existing().status != 'Delivered'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'deliveryPerson', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(orderId) && isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow get: if isValidId(reviewId) && isSignedIn();
+      allow list: if isSignedIn() && resource.data.rating >= 1 && resource.data.rating <= 5;
+      allow create: if isValidId(reviewId)
+        && isVerified()
+        && isValidReview(incoming())
+        && incoming().ownerUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(reviewId)
+        && isVerified()
+        && isValidReview(incoming())
+        && incoming().ownerUid == existing().ownerUid
+        && incoming().createdAt == existing().createdAt
+        && (
+          isAdmin() ||
+          (
+            existing().ownerUid == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'comment'])
+          )
+        );
+      allow delete: if isValidId(reviewId) && (isAdmin() || (isVerified() && existing().ownerUid == request.auth.uid));
+    }
+
+    match /logs/{logId} {
+      allow get: if isValidId(logId) && isSignedIn() && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow create: if isValidId(logId)
+        && isVerified()
+        && isValidLogEntry(incoming())
+        && incoming().ownerUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isValidId(logId) && (isAdmin() || (isVerified() && existing().ownerUid == request.auth.uid));
+    }
+
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isAdmin();
+      allow list, write: if false;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Online Food Ordering and Delivery System",
+  "description": "Object-Oriented Programming web application for ordering food, processing polymorphic payments, tracking live delivery, generating receipts, and inspecting system logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
